@@ -67,15 +67,23 @@ app.get("/api/employees/:identifier", async (request, response) => {
     }
 
     const source = employeeResult.recordset[0];
-    const canonicalEPF = String(source.EmployeeEPF);
+    const canonicalEPF = source.EmployeeEPF == null ? null : String(source.EmployeeEPF);
+    const canonicalPIN = String(source.EmployeePIN);
 
-    const profileResult = await connection.request().input("epf", sql.NVarChar(30), canonicalEPF).query(`
+    const profileResult = await connection.request()
+      .input("epf", sql.NVarChar(30), canonicalEPF)
+      .input("pin", sql.NVarChar(30), canonicalPIN)
+      .query(`
       SELECT TOP (1) PIN, EmployeeEPF, ProfileImage
       FROM dbo.View_EmployeeProfileImage_toWebDashBoard
-      WHERE EmployeeEPF = @epf;
+      WHERE (@epf IS NOT NULL AND EmployeeEPF = @epf)
+         OR CONVERT(NVARCHAR(30), PIN) = @pin;
     `);
 
-    const attendanceResult = await connection.request().input("epf", sql.NVarChar(30), canonicalEPF).query(`
+    const attendanceResult = await connection.request()
+      .input("epf", sql.NVarChar(30), canonicalEPF)
+      .input("pin", sql.NVarChar(30), canonicalPIN)
+      .query(`
       WITH DeduplicatedAttendance AS (
         SELECT
           LogTime, EmployeePIN, EmployeeEPF, Name, VerifyMode,
@@ -85,7 +93,8 @@ app.get("/api/employees/:identifier", async (request, response) => {
             ORDER BY LogTime
           ) AS RecordNumber
         FROM dbo.View_EmployeeAttendanceLog_toWebDashBoard
-        WHERE EmployeeEPF = @epf
+        WHERE (@epf IS NOT NULL AND EmployeeEPF = @epf)
+           OR CONVERT(NVARCHAR(30), EmployeePIN) = @pin
       )
       SELECT TOP (100)
         attendance.LogTime, attendance.EmployeePIN, attendance.EmployeeEPF,
@@ -109,7 +118,7 @@ app.get("/api/employees/:identifier", async (request, response) => {
     const profile = profileResult.recordset[0];
     response.json({
       employee: {
-        epf: source.EmployeeEPF,
+        epf: source.EmployeeEPF ?? null,
         pin: source.EmployeePIN,
         name: source.Name,
         mobileNumber: source.MobileNumber ?? null,
