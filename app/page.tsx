@@ -2,14 +2,6 @@
 
 import { FormEvent, useState } from "react";
 
-const logs = [
-  { date: "20 Aug 2026", day: "Today", checkIn: "07:28 AM", checkOut: "—", hours: "In progress", status: "Present" },
-  { date: "19 Aug 2026", day: "Wednesday", checkIn: "07:31 AM", checkOut: "04:42 PM", hours: "9h 11m", status: "Present" },
-  { date: "18 Aug 2026", day: "Tuesday", checkIn: "07:46 AM", checkOut: "04:38 PM", hours: "8h 52m", status: "Late" },
-  { date: "17 Aug 2026", day: "Monday", checkIn: "07:26 AM", checkOut: "04:35 PM", hours: "9h 09m", status: "Present" },
-  { date: "14 Aug 2026", day: "Friday", checkIn: "07:29 AM", checkOut: "04:31 PM", hours: "9h 02m", status: "Present" },
-];
-
 const calendar = [
   ...Array(5).fill(null),
   ...Array.from({ length: 20 }, (_, index) => ({ day: index + 1, state: [4, 11].includes(index + 1) ? "late" : [7, 8, 14, 15].includes(index + 1) ? "weekend" : index + 1 === 12 ? "leave" : "present" })),
@@ -24,36 +16,78 @@ const workforce = [
   { initials: "AM", name: "Ayesha Madushani", id: "CPSTL-1107", department: "Administration", checkIn: "07:25 AM", checkOut: "12:18 PM", status: "Half day" },
 ];
 
+type EmployeeResponse = {
+  employee: {
+    epf: string; pin: string; name: string; mobileNumber: string | null;
+    phoneNumber: string | null; email: string | null; location: string | null;
+    branch: string | null; position: string | null; active: number | boolean | null;
+    deviceName: string | null; deviceType: string | null; profileImage: string | null;
+  };
+  attendance: Array<{
+    logTime: string; verifyMode: string; deviceSerial: string; deviceIP: string;
+    deviceLocation: string; deviceLabel: string; imageName: string | null;
+    capturedImage: string | null;
+  }>;
+};
+
+const initials = (name?: string) => (name || "Employee").split(/[ .]+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+const formatLogTime = (value: string) => new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
 export default function Home() {
   const [signedIn, setSignedIn] = useState(false);
   const [employeeId, setEmployeeId] = useState("1042");
   const [role, setRole] = useState<"admin" | "employee">("employee");
+  const [employeeData, setEmployeeData] = useState<EmployeeResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
-  function signIn(event: FormEvent<HTMLFormElement>) {
+  async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setRole(employeeId.trim().toUpperCase() === "ADMIN-001" ? "admin" : "employee");
-    setSignedIn(true);
+    const epf = employeeId.trim();
+    setLoginError("");
+    if (epf.toUpperCase() === "ADMIN-001") {
+      setRole("admin");
+      setSignedIn(true);
+      return;
+    }
+    setLoading(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_ATTENDANCE_API_URL || "http://localhost:4000";
+      const response = await fetch(`${apiUrl}/api/employees/${encodeURIComponent(epf)}`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Employee EPF was not found.");
+      setEmployeeData(result);
+      setRole("employee");
+      setSignedIn(true);
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Unable to connect to the attendance server.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!signedIn) return (
     <main className="login-shell">
       <section className="brand-panel"><div className="brand-glow" /><div className="brand-copy"><img className="login-logo" src="/cpstl-logo.png" alt="Ceylon Petroleum Storage Terminals Limited" /><p className="eyebrow light">CPSTL EMPLOYEE PORTAL</p><h1>Your attendance,<br /><span>clear and accessible.</span></h1><p className="brand-description">Securely review your fingerprint records, working hours, punctuality, and leave information.</p><div className="brand-stats"><div><strong>24/7</strong><span>Access</span></div><div><strong>Live</strong><span>Records</span></div><div><strong>Secure</strong><span>Account</span></div></div></div><p className="brand-footer">Ceylon Petroleum Storage Terminals Limited</p></section>
-      <section className="login-panel"><div className="login-card"><div className="mobile-brand"><img src="/cpstl-logo.png" alt="CPSTL" /><span>CPSTL</span></div><p className="eyebrow">EMPLOYEE ATTENDANCE LOOKUP</p><h2>Welcome</h2><p className="login-intro">Enter your Employee EPF number to load your attendance dashboard.</p><form onSubmit={signIn}><label htmlFor="employee-id">Employee EPF</label><div className="input-wrap epf-input"><span>EPF</span><input id="employee-id" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder="e.g. 1042" autoComplete="off" required /></div><button className="primary-button" type="submit">Load attendance dashboard <span>→</span></button></form><p className="support epf-support">EPF not recognized? <a href="mailto:ithelpdesk@cpstl.lk">Contact IT Helpdesk</a></p></div></section>
+      <section className="login-panel"><div className="login-card"><div className="mobile-brand"><img src="/cpstl-logo.png" alt="CPSTL" /><span>CPSTL</span></div><p className="eyebrow">EMPLOYEE ATTENDANCE LOOKUP</p><h2>Welcome</h2><p className="login-intro">Enter your Employee EPF number to load your attendance dashboard.</p><form onSubmit={signIn}><label htmlFor="employee-id">Employee EPF</label><div className="input-wrap epf-input"><span>EPF</span><input id="employee-id" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder="e.g. 16603" autoComplete="off" required /></div>{loginError && <p className="login-error" role="alert">{loginError}</p>}<button className="primary-button" type="submit" disabled={loading}>{loading ? "Loading employee records..." : "Load attendance dashboard"} <span>{loading ? "" : "→"}</span></button></form><p className="support epf-support">EPF not recognized? <a href="mailto:ithelpdesk@cpstl.lk">Contact IT Helpdesk</a></p></div></section>
     </main>
   );
 
   if (role === "admin") return <AdminDashboard onSignOut={() => setSignedIn(false)} />;
 
+  const employee = employeeData!.employee;
+  const attendanceRecords = employeeData!.attendance;
+
   return (
     <main className="dashboard-shell employee-dashboard">
       <aside className="sidebar"><div className="sidebar-brand"><img src="/cpstl-logo.png" alt="CPSTL" /><div><strong>CPSTL</strong><span>Employee Portal</span></div></div><nav><p>MY WORKSPACE</p><button className="nav-active"><span>▦</span> My Attendance</button><button><span>◷</span> Attendance History</button><button><span>▤</span> My Leave</button><button><span>♙</span> My Profile</button><p>SUPPORT</p><button><span>?</span> Request Correction</button><button><span>☏</span> Help & Support</button></nav><div className="sidebar-bottom"><button><span>⚙</span> Settings</button><button onClick={() => setSignedIn(false)}><span>↪</span> Sign out</button></div></aside>
-      <section className="dashboard-main"><header className="topbar"><div className="dashboard-logo-mobile"><img src="/cpstl-logo.png" alt="CPSTL" /></div><div className="status-pill"><i /> Fingerprint verified today</div><div className="top-actions"><button aria-label="Notifications">♢<b>1</b></button><div className="avatar">NP</div><div className="user-name"><strong>Nimal Perera</strong><span>EPF {employeeId}</span></div></div></header>
-        <div className="dashboard-content"><div className="welcome-row"><div><p className="eyebrow">THURSDAY, 20 AUGUST 2026</p><h1>Good morning, Nimal.</h1><p>Here is your personal fingerprint attendance summary.</p></div><button className="outline-button">↥ Download my report</button></div>
-          <section className="employee-profile-strip"><div className="profile-avatar">NP</div><div><strong>Nimal Perera</strong><span>EPF {employeeId} · Terminal Operations</span></div><dl><div><dt>Shift</dt><dd>07:30 AM – 04:30 PM</dd></div><div><dt>Location</dt><dd>Kolonnawa Terminal</dd></div><div><dt>Supervisor</dt><dd>Amal Kumara</dd></div></dl></section>
+      <section className="dashboard-main"><header className="topbar"><div className="dashboard-logo-mobile"><img src="/cpstl-logo.png" alt="CPSTL" /></div><div className="status-pill"><i /> Attendance records connected</div><div className="top-actions"><button aria-label="Notifications">♢<b>1</b></button><div className="avatar">{initials(employee.name)}</div><div className="user-name"><strong>{employee.name}</strong><span>EPF {employee.epf}</span></div></div></header>
+        <div className="dashboard-content"><div className="welcome-row"><div><p className="eyebrow">EMPLOYEE ATTENDANCE</p><h1>Welcome, {employee.name}.</h1><p>Your employee profile and fingerprint attendance records.</p></div><button className="outline-button">↥ Download my report</button></div>
+          <section className="employee-details-card panel"><div className="profile-image-wrap">{employee.profileImage ? <img src={employee.profileImage} alt={`${employee.name} profile`} /> : <div className="no-profile-image"><span>{initials(employee.name)}</span><small>No profile image</small></div>}</div><div className="employee-primary"><p className="eyebrow">EMPLOYEE PROFILE</p><h2>{employee.name}</h2><span>EPF {employee.epf} · PIN {employee.pin}</span><span className="active-employee">● {employee.active === 0 || employee.active === false ? "Inactive employee" : "Active employee"}</span></div><dl><div><dt>Location</dt><dd>{employee.location || "Not available"}</dd></div><div><dt>Branch</dt><dd>{employee.branch || "Not available"}</dd></div><div><dt>Position</dt><dd>{employee.position || "Not available"}</dd></div><div><dt>Email</dt><dd>{employee.email || "Not available"}</dd></div><div><dt>Mobile</dt><dd>{employee.mobileNumber || employee.phoneNumber || "Not available"}</dd></div><div><dt>Device</dt><dd>{employee.deviceName || employee.deviceType || "Not available"}</dd></div></dl></section>
           <section className="metric-grid attendance-metrics"><article><div className="metric-icon red">✓</div><div><span>Days present</span><strong>18 <small>of 19 days</small></strong><p className="up">94.7% attendance</p></div></article><article><div className="metric-icon green">◷</div><div><span>Hours worked</span><strong>162h <small>this month</small></strong><p>Average 9h per day</p></div></article><article><div className="metric-icon amber">!</div><div><span>Late arrivals</span><strong>2 <small>this month</small></strong><p>18 minutes total</p></div></article><article><div className="metric-icon blue">▤</div><div><span>Leave balance</span><strong>12 <small>days remaining</small></strong><p>1 approved day in August</p></div></article></section>
           <div className="employee-grid"><section className="panel today-card"><div className="panel-title"><div><h2>Today&apos;s attendance</h2><p>Your live fingerprint status</p></div><span className="attendance-tag">Present</span></div><div className="today-timeline"><div className="timeline-event done"><span>◎</span><div><small>CHECK IN</small><strong>07:28 AM</strong><p>Fingerprint Device 01 · Main Gate</p></div></div><i /><div className="timeline-event"><span>◷</span><div><small>CHECK OUT</small><strong>Pending</strong><p>Expected after 04:30 PM</p></div></div></div><div className="worked-progress"><span><b>Time worked today</b><strong>4h 52m / 9h</strong></span><div><i style={{width:"54%"}} /></div></div></section>
             <section className="panel calendar-card"><div className="panel-title"><div><h2>August 2026</h2><p>Your monthly attendance</p></div><button>‹ &nbsp; ›</button></div><div className="calendar-head">{["MON","TUE","WED","THU","FRI","SAT","SUN"].map(day => <span key={day}>{day}</span>)}</div><div className="calendar-grid">{calendar.map((item, index) => <div key={index} className={item ? item.state : "empty"}>{item?.day}</div>)}</div><div className="calendar-legend"><span><i className="present" /> Present</span><span><i className="late" /> Late</span><span><i className="leave" /> Leave</span></div></section></div>
-          <section className="panel attendance-panel"><div className="panel-title attendance-heading"><div><h2>My recent attendance</h2><p>Your latest fingerprint check-in and check-out records</p></div><button>View full history →</button></div><div className="self-table"><div className="self-row table-head"><span>Date</span><span>Check in</span><span>Check out</span><span>Working hours</span><span>Status</span></div>{logs.map(row => <div className="self-row" key={row.date}><div><strong>{row.date}</strong><small>{row.day}</small></div><strong>{row.checkIn}</strong><strong>{row.checkOut}</strong><span>{row.hours}</span><span className={`attendance-tag ${row.status.toLowerCase()}`}>{row.status}</span></div>)}</div></section>
+          <section className="panel attendance-panel"><div className="panel-title attendance-heading"><div><h2>My fingerprint attendance</h2><p>{attendanceRecords.length} deduplicated attendance records loaded</p></div><button>View full history →</button></div><div className="database-attendance-table"><div className="database-attendance-row table-head"><span>Captured employee</span><span>Date and time</span><span>Verification</span><span>Device</span><span>Location</span></div>{attendanceRecords.map((record, index) => <div className="database-attendance-row" key={`${record.logTime}-${record.deviceSerial}-${index}`}><div className="capture-cell">{record.capturedImage ? <img src={record.capturedImage} alt={`Captured at ${formatLogTime(record.logTime)}`} /> : <div className="capture-placeholder">No image</div>}<small>{record.imageName || "No captured image"}</small></div><strong>{formatLogTime(record.logTime)}</strong><span className="attendance-tag">{record.verifyMode || "Fingerprint"}</span><div><strong>{record.deviceLabel || record.deviceSerial}</strong><small>{record.deviceIP}</small></div><span>{record.deviceLocation || "Not available"}</span></div>)}</div>{attendanceRecords.length === 0 && <div className="empty-attendance">No attendance records were found for this EPF.</div>}</section>
           <section className="quick-section"><div className="panel-title"><div><h2>Employee services</h2><p>Manage your attendance and leave</p></div></div><div className="quick-grid"><button><span>?</span><div><strong>Request correction</strong><small>Report a missing fingerprint record</small></div><b>→</b></button><button><span>▤</span><div><strong>Apply for leave</strong><small>Submit a new leave request</small></div><b>→</b></button><button><span>↥</span><div><strong>Download report</strong><small>Export your monthly attendance</small></div><b>→</b></button></div></section>
         </div>
       </section>
