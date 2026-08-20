@@ -55,7 +55,7 @@ export default function Home() {
       const apiUrl = process.env.NEXT_PUBLIC_ATTENDANCE_API_URL || "http://localhost:4000";
       const response = await fetch(`${apiUrl}/api/employees/${encodeURIComponent(epf)}`);
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Employee EPF was not found.");
+      if (!response.ok) throw new Error(result.error || "Employee EPF or PIN was not found.");
       setEmployeeData(result);
       setRole("employee");
       setSignedIn(true);
@@ -69,7 +69,7 @@ export default function Home() {
   if (!signedIn) return (
     <main className="login-shell">
       <section className="brand-panel"><div className="brand-glow" /><div className="brand-copy"><img className="login-logo" src="/cpstl-logo.png" alt="Ceylon Petroleum Storage Terminals Limited" /><p className="eyebrow light">CPSTL EMPLOYEE PORTAL</p><h1>Your attendance,<br /><span>clear and accessible.</span></h1><p className="brand-description">Securely review your fingerprint records, working hours, punctuality, and leave information.</p><div className="brand-stats"><div><strong>24/7</strong><span>Access</span></div><div><strong>Live</strong><span>Records</span></div><div><strong>Secure</strong><span>Account</span></div></div></div><p className="brand-footer">Ceylon Petroleum Storage Terminals Limited</p></section>
-      <section className="login-panel"><div className="login-card"><div className="mobile-brand"><img src="/cpstl-logo.png" alt="CPSTL" /><span>CPSTL</span></div><p className="eyebrow">EMPLOYEE ATTENDANCE LOOKUP</p><h2>Welcome</h2><p className="login-intro">Enter your Employee EPF number to load your attendance dashboard.</p><form onSubmit={signIn}><label htmlFor="employee-id">Employee EPF</label><div className="input-wrap epf-input"><span>EPF</span><input id="employee-id" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder="e.g. 16603" autoComplete="off" required /></div>{loginError && <p className="login-error" role="alert">{loginError}</p>}<button className="primary-button" type="submit" disabled={loading}>{loading ? "Loading employee records..." : "Load attendance dashboard"} <span>{loading ? "" : "→"}</span></button></form><p className="support epf-support">EPF not recognized? <a href="mailto:ithelpdesk@cpstl.lk">Contact IT Helpdesk</a></p></div></section>
+      <section className="login-panel"><div className="login-card"><div className="mobile-brand"><img src="/cpstl-logo.png" alt="CPSTL" /><span>CPSTL</span></div><p className="eyebrow">EMPLOYEE ATTENDANCE LOOKUP</p><h2>Welcome</h2><p className="login-intro">Enter your Employee EPF or Employee PIN to load your attendance dashboard.</p><form onSubmit={signIn}><label htmlFor="employee-id">Employee EPF or PIN</label><div className="input-wrap epf-input"><span>ID</span><input id="employee-id" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder="Enter EPF or Employee PIN" autoComplete="off" required /></div>{loginError && <p className="login-error" role="alert">{loginError}</p>}<button className="primary-button" type="submit" disabled={loading}>{loading ? "Loading employee records..." : "Load attendance dashboard"} <span>{loading ? "" : "→"}</span></button></form><p className="support epf-support">Employee not recognized? <a href="mailto:ithelpdesk@cpstl.lk">Contact IT Helpdesk</a></p></div></section>
     </main>
   );
 

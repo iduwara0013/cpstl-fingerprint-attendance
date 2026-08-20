@@ -46,32 +46,36 @@ app.get("/health", async (_request, response) => {
   }
 });
 
-app.get("/api/employees/:epf", async (request, response) => {
-  const epf = String(request.params.epf || "").trim();
-  if (!/^[A-Za-z0-9-]{1,30}$/.test(epf)) {
-    return response.status(400).json({ error: "Invalid Employee EPF." });
+app.get("/api/employees/:identifier", async (request, response) => {
+  const identifier = String(request.params.identifier || "").trim();
+  if (!/^[A-Za-z0-9-]{1,30}$/.test(identifier)) {
+    return response.status(400).json({ error: "Invalid EPF or Employee PIN." });
   }
 
   try {
     const connection = await poolPromise;
-    const employeeResult = await connection.request().input("epf", sql.NVarChar(30), epf).query(`
+    const employeeResult = await connection.request().input("identifier", sql.NVarChar(30), identifier).query(`
       SELECT TOP (1) *
       FROM dbo.View_EmployeeAttendanceLog_toWebDashBoard
-      WHERE EmployeeEPF = @epf
+      WHERE EmployeeEPF = @identifier
+         OR CONVERT(NVARCHAR(30), EmployeePIN) = @identifier
       ORDER BY LogTime DESC;
     `);
 
     if (!employeeResult.recordset[0]) {
-      return response.status(404).json({ error: "Employee EPF was not found." });
+      return response.status(404).json({ error: "Employee EPF or PIN was not found." });
     }
 
-    const profileResult = await connection.request().input("epf", sql.NVarChar(30), epf).query(`
+    const source = employeeResult.recordset[0];
+    const canonicalEPF = String(source.EmployeeEPF);
+
+    const profileResult = await connection.request().input("epf", sql.NVarChar(30), canonicalEPF).query(`
       SELECT TOP (1) PIN, EmployeeEPF, ProfileImage
       FROM dbo.View_EmployeeProfileImage_toWebDashBoard
       WHERE EmployeeEPF = @epf;
     `);
 
-    const attendanceResult = await connection.request().input("epf", sql.NVarChar(30), epf).query(`
+    const attendanceResult = await connection.request().input("epf", sql.NVarChar(30), canonicalEPF).query(`
       WITH DeduplicatedAttendance AS (
         SELECT
           LogTime, EmployeePIN, EmployeeEPF, Name, VerifyMode,
@@ -102,7 +106,6 @@ app.get("/api/employees/:epf", async (request, response) => {
       ORDER BY attendance.LogTime DESC;
     `);
 
-    const source = employeeResult.recordset[0];
     const profile = profileResult.recordset[0];
     response.json({
       employee: {
