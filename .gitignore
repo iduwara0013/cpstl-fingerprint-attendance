@@ -39,3 +39,4 @@ yarn-error.log*
 /.wrangler/
 /outputs/
 /work/
+cpstl-site.tar.gz
