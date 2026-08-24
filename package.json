@@ -15,6 +15,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "argon2": "^0.45.1",
     "cors": "^2.8.6",
     "drizzle-orm": "0.45.2",
     "express": "^5.2.1",
