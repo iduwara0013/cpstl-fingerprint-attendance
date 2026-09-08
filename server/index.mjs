@@ -147,17 +147,22 @@ async function loadEmployeeAttendance(pin, epf, startDate, endDate) {
   const connection = await attendancePoolPromise;
   const employeeResult = await connection.request().input("pin", sql.NVarChar(30), pin).input("epf", sql.NVarChar(30), epf).query(`
     SELECT TOP (1) * FROM dbo.View_EmployeeAttendanceLog_toWebDashBoard
-    WHERE CONVERT(NVARCHAR(30), EmployeePIN) = @pin OR (@epf IS NOT NULL AND EmployeeEPF = @epf)
+    WHERE LTRIM(RTRIM(CONVERT(NVARCHAR(30), EmployeePIN))) = @pin
+       OR LTRIM(RTRIM(CONVERT(NVARCHAR(30), EmployeeEPF))) = @pin
+       OR (@epf IS NOT NULL AND LTRIM(RTRIM(CONVERT(NVARCHAR(30), EmployeePIN))) = @epf)
+       OR (@epf IS NOT NULL AND LTRIM(RTRIM(CONVERT(NVARCHAR(30), EmployeeEPF))) = @epf)
     ORDER BY LogTime DESC;
   `);
   const source = employeeResult.recordset[0];
   if (!source) return null;
-  const profileResult = await connection.request().input("pin", sql.NVarChar(30), pin).input("epf", sql.NVarChar(30), epf).query(`
+  const resolvedPin = String(source.EmployeePIN ?? pin).trim();
+  const resolvedEpf = source.EmployeeEPF == null ? epf : String(source.EmployeeEPF).trim();
+  const profileResult = await connection.request().input("pin", sql.NVarChar(30), resolvedPin).input("epf", sql.NVarChar(30), resolvedEpf).query(`
     SELECT TOP (1) ProfileImage FROM dbo.View_EmployeeProfileImage_toWebDashBoard
     WHERE CONVERT(NVARCHAR(30), PIN) = @pin OR (@epf IS NOT NULL AND EmployeeEPF = @epf);
   `);
   const attendanceResult = await connection.request()
-    .input("pin", sql.NVarChar(30), pin).input("epf", sql.NVarChar(30), epf)
+    .input("pin", sql.NVarChar(30), resolvedPin).input("epf", sql.NVarChar(30), resolvedEpf)
     .input("startDate", sql.NVarChar(10), startDate).input("endDate", sql.NVarChar(10), endDate).query(`
       WITH DeduplicatedAttendance AS (
         SELECT LogTime, EmployeePIN, EmployeeEPF, VerifyMode, DeviceSerial, DeviceIP, DeviceLocation, DeviceLabel,
@@ -180,7 +185,7 @@ async function loadEmployeeAttendance(pin, epf, startDate, endDate) {
     `);
   return {
     employee: {
-      epf: source.EmployeeEPF ?? epf, pin: source.EmployeePIN ?? pin, name: source.Name,
+      epf: source.EmployeeEPF ?? resolvedEpf, pin: source.EmployeePIN ?? resolvedPin, name: source.Name,
       mobileNumber: source.MobileNumber ?? null, phoneNumber: source.PhoneNumber ?? null, email: source.Email ?? null,
       location: source.EmployeeLocation ?? source.DeviceLocation ?? null, branch: source.EmployeeBranch ?? null,
       position: source.PositionType ?? null, active: source.ActiveEmployee ?? null,
@@ -301,7 +306,11 @@ app.post("/api/auth/change-password", authenticate, async (request, response) =>
   const newPassword = String(request.body?.newPassword || "");
   if (newPassword.length < 4 || newPassword.length > 200) return response.status(400).json({ error: "The new password must contain at least 4 characters." });
   if (newPassword === String(request.authUser.EmployeePIN) || (request.authUser.EmployeeEPF && newPassword === String(request.authUser.EmployeeEPF))) return response.status(400).json({ error: "The new password cannot be your Employee PIN or EPF." });
-  const currentValid = await argon2.verify(request.authUser.PasswordHash, currentPassword).catch(() => false);
+  const currentValid = await argon2.verify(request.authUser.PasswordHash, currentPassword).catch(() => false)
+    || (request.authUser.MustChangePassword && (
+      exactSecretMatch(currentPassword, request.authUser.EmployeePIN)
+      || (request.authUser.EmployeeEPF != null && exactSecretMatch(currentPassword, request.authUser.EmployeeEPF))
+    ));
   if (!currentValid) return response.status(401).json({ error: "The current password is incorrect." });
   try {
     const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });

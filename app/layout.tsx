@@ -1,6 +1,8 @@
+import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "./present-day-card.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,10 +28,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const requestedScale = Number(import.meta.env.VITE_UI_FONT_SCALE || "1");
+  const uiScale = Number.isFinite(requestedScale)
+    ? Math.min(1.5, Math.max(0.8, requestedScale))
+    : 1;
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        style={{ "--ui-font-scale": uiScale } as CSSProperties}
       >
         {children}
       </body>

@@ -85,6 +85,7 @@ try {
   console.log({
     employeePIN: temporaryPassword,
     employeeEPF: account.EmployeeEPF ?? null,
+    temporaryPassword: "Use the employee PIN or EPF",
     mustChangePassword: true,
     existingSessionsRevoked: true,
   });

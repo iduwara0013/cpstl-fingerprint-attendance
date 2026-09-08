@@ -10,6 +10,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "server:start": "node --env-file=.env server/index.mjs",
+    "passwords:reset-all-employees": "node --env-file=.env scripts/reset-all-employee-passwords.mjs --confirm",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
