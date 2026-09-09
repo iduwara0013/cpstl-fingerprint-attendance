@@ -74,7 +74,7 @@ const monthOptions = Array.from({ length: 4 }, (_, index) => {
 
 export default function Home() {
   const [signedIn, setSignedIn] = useState(false);
-  const [employeeId, setEmployeeId] = useState("1042");
+  const [employeeId, setEmployeeId] = useState("");
   const [password, setPassword] = useState("");
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
